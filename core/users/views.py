@@ -40,48 +40,24 @@ class RegisterAPIView(APIView):
                     'error': 'Email already registered'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            try:
-                # Delete any existing verification codes for this email and type
-                VerificationCode.objects.filter(
-                    email=email, 
-                    verification_type='registration'
-                ).delete()
-                
-                # Generate verification code
-                code = generate_verification_code()
-                
-                verification = VerificationCode.objects.create(
+            user = User.objects.create_user(
+                    username=username,
                     email=email,
-                    code=code,
-                    verification_type='registration',
-                    user_data={
-                        'username': username,
-                        'email': email,
-                        'password': password,
-                    },
-                    expires_at=timezone.now() + timedelta(minutes=5)  
+                    password=password
                 )
-                
-                # Send verification email
-                send_verification_email(email, code)
+                obj = UserProfile.objects.create(user=user)
+                obj.save()
+                # Create authentication token
+                token, created = Token.objects.get_or_create(user=user)
                 
                 return Response({
                     'success': True,
-                    'message': 'Verification code sent to your email',
-                    'verification_id': verification.id  # Return ID for reference
-                }, status=status.HTTP_200_OK)
-                
-            except Exception as e:
-                return Response({
-                    'success': False,
-                    'error': f'Failed to send verification code: {str(e)}'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response({
-            'success': False,
-            'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
-
+                    'message': 'User registered successfully',
+                    'token': token.key,
+                    'user_id': user.id,
+                    'username': user.username,
+                    'email': user.email
+                }, status=status.HTTP_201_CREATED)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class VerifyEmailAPIView(APIView):
